@@ -415,10 +415,10 @@ main{max-width:900px;margin:0 auto;padding:28px 18px 80px}
 // ╔══════════════════════════════════════════════════════╗
 // ║           CONFIGURATION — FILL THESE IN             ║
 // ╚══════════════════════════════════════════════════════╝
-const SUPABASE_URL  = 'https://uottuqqttklxcesxhijw.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_SFPzqaiDkGN_BUonCsL9Kw_p5yiZWrk';
-const YOUCAM_API_KEY   = 'sk-_DqRLIN1iHacG-RHKf8RCjqTKx060p6bxz4QrAUal14AGW2Jg5F50ML_fh6TMr37';
-const YOUCAM_API_BASE  = 'https://yce-api-01.makeupar.com/s2s/v2.0';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON    = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const YOUCAM_API_KEY   = 'YOUR_YOUCAM_API_KEY_HERE';
+const YOUCAM_API_BASE  = 'https://api-sdk.perfectcorp.com/s2s/v1.1';
 
 // ─── Supabase client ───────────────────────────────────
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -701,7 +701,7 @@ async function startAnalysis() {
   const reportCode = await saveReport(results, isMock);
 
   await delay(300);
-  renderReport(results, reportCode, isMock);
+  await renderReport(results, reportCode, isMock);
   goStep(3);
 }
 
@@ -803,18 +803,27 @@ function mockResults() {
 // ─── Save to Supabase ──────────────────────────────────
 async function saveReport(results, isMock) {
   const code = 'BB-' + Date.now().toString(36).toUpperCase();
+  const sess = JSON.parse(sessionStorage.getItem('bb_customer_auth') || '{}');
   try {
     await sb.from('bb_reports').insert({
-      report_code: code,
-      skin_type:   results.skin_type,
-      skin_age:    results.skin_age,
-      scores:      results.scores,
-      is_mock:     isMock,
+      report_code:  code,
+      customer_id:  sess.id || null,
+      skin_type:    results.skin_type,
+      skin_age:     results.skin_age,
+      scores:       results.scores,
+      is_mock:      isMock,
     });
   } catch(e) {
-    console.warn('Supabase save failed (check config):', e.message);
+    console.warn('Supabase save failed:', e.message);
   }
   return code;
+}
+
+// ─── Update report with final share URL after storage upload ──
+async function updateReportUrl(reportCode, shareUrl) {
+  try {
+    await sb.from('bb_reports').update({ share_url: shareUrl }).eq('report_code', reportCode);
+  } catch(e) { /* non-critical */ }
 }
 
 // ─── Load products from Supabase ──────────────────────
@@ -921,6 +930,9 @@ async function renderReport(results, reportCode, isMock) {
 
   // Build the shareable report HTML and save to Supabase storage
   const shareUrl = await buildAndSaveReportPage(results, reportCode, products, dateStr, isMock);
+
+  // Save the final share URL back to the report record
+  await updateReportUrl(reportCode, shareUrl);
 
   document.getElementById('shareLink').value = shareUrl;
   document.getElementById('qrcode').innerHTML = '';
@@ -1039,35 +1051,62 @@ async function buildAndSaveReportPage(results, reportCode, products, dateStr, is
 </body>
 </html>`;
 
-  // Save HTML using direct fetch PUT — Supabase JS SDK ignores contentType
-  // for Blob uploads and defaults to text/plain, which makes browsers show
-  // raw HTML instead of rendering it. Direct fetch lets us force text/html.
+  // ── Upload report HTML to Supabase Storage ──────────────────
+  // We use the JS SDK but wrap the string in a File object (not Blob).
+  // File objects carry a .name with extension, which forces the SDK to
+  // detect 'text/html' correctly instead of defaulting to 'text/plain'.
   const fileName  = `${reportCode}.html`;
   const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/reports/${fileName}`;
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/reports/${fileName}`;
 
   try {
-    const res = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
-        'Content-Type':  'text/html; charset=utf-8',
-        'x-upsert':      'true',
-        'Cache-Control': 'no-cache',
-      },
-      body: reportHTML,
-    });
+    // Wrap HTML string in a File — this is the key fix.
+    // File extends Blob but the SDK reads the .name extension to set MIME type.
+    const file = new File([reportHTML], fileName, { type: 'text/html' });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Storage ${res.status}: ${errText}`);
-    }
+    const { error } = await sb.storage
+      .from('reports')
+      .upload(fileName, file, {
+        contentType: 'text/html',
+        cacheControl: '3600',
+        upsert: true,
+      });
 
+    if (error) throw error;
+
+    console.log('✅ Report saved:', publicUrl);
     return publicUrl;
 
   } catch(e) {
-    console.warn('Report storage failed:', e.message);
-    return window.location.href.split('?')[0] + '?report=' + reportCode;
+    console.error('❌ Storage upload error:', e.message);
+
+    // ── Hard fallback: use raw fetch with apikey header ──────
+    // Supabase Storage REST API requires both apikey AND Authorization headers.
+    try {
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/reports/${fileName}`;
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'apikey':        SUPABASE_ANON,
+          'Authorization': `Bearer ${SUPABASE_ANON}`,
+          'Content-Type':  'text/html',
+          'x-upsert':      'true',
+        },
+        body: reportHTML,
+      });
+
+      if (res.ok) {
+        console.log('✅ Report saved via REST fallback:', publicUrl);
+        return publicUrl;
+      }
+
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`REST upload ${res.status}: ${errBody}`);
+
+    } catch(e2) {
+      console.error('❌ REST fallback also failed:', e2.message);
+      // Final fallback: in-app URL with report code
+      return window.location.href.split('?')[0] + '?report=' + reportCode;
+    }
   }
 }
 
@@ -1127,18 +1166,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ══════════════════════════════════════════
 function checkCustomerAuth() {
   const raw = sessionStorage.getItem('bb_customer_auth');
-  if (!raw) { window.location.href = 'index.html'; return null; }
+  if (!raw) { window.location.href = 'customer-login.html'; return null; }
   try {
     const sess = JSON.parse(raw);
     // Session expires after 12 hours
     if (Date.now() - sess.loginAt > 12 * 60 * 60 * 1000) {
       sessionStorage.removeItem('bb_customer_auth');
-      window.location.href = 'index.html';
+      window.location.href = 'customer-login.html';
       return null;
     }
     return sess;
   } catch(e) {
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
     return null;
   }
 }
@@ -1146,21 +1185,83 @@ function checkCustomerAuth() {
 function logout() {
   if (confirm('Log out?')) {
     sessionStorage.removeItem('bb_customer_auth');
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
   }
 }
 
 // ── Run auth check on load ──
 (function() {
   const sess = checkCustomerAuth();
-  if (sess) {
-    const nameEl = document.getElementById('navUserName');
-    if (nameEl) {
-      nameEl.textContent = sess.name || '';
-      nameEl.style.display = 'inline';
-    }
+  if (!sess) return;
+
+  const nameEl = document.getElementById('navUserName');
+  if (nameEl) {
+    nameEl.textContent = sess.name || '';
+    nameEl.style.display = 'inline';
+  }
+
+  // ── If URL has ?report=CODE, load that saved report directly ──
+  const urlParams = new URLSearchParams(window.location.search);
+  const reportCode = urlParams.get('report');
+  if (reportCode) {
+    loadSavedReport(reportCode);
   }
 })();
+
+// ── Load a saved report by code from Supabase ──────────────
+async function loadSavedReport(reportCode) {
+  // First try the Supabase storage direct URL (properly rendered HTML page)
+  const storageUrl = `${SUPABASE_URL}/storage/v1/object/public/reports/${reportCode}.html`;
+
+  // Test if storage file exists by fetching its headers
+  try {
+    const test = await fetch(storageUrl, { method: 'HEAD' });
+    if (test.ok) {
+      // Storage file exists and renders as HTML — redirect directly to it
+      window.location.replace(storageUrl);
+      return;
+    }
+  } catch(e) { /* fall through to Supabase DB lookup */ }
+
+  // Storage file not found — load scores from bb_reports table and re-render
+  goStep(2);
+  setStatus('Loading saved report…');
+  try {
+    const { data, error } = await sb
+      .from('bb_reports')
+      .select('*')
+      .eq('report_code', reportCode)
+      .single();
+
+    if (error || !data) {
+      showBanner('Report not found: ' + reportCode);
+      goStep(1);
+      return;
+    }
+
+    // Show placeholder image since we don't store photos
+    capturedDataUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI0VBRjJFQiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzRBNzE1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIHBob3RvPC90ZXh0Pjwvc3ZnPg==';
+
+    const results = {
+      scores:    data.scores || {},
+      skin_type: data.skin_type || 'Combination',
+      skin_age:  data.skin_age,
+    };
+
+    const products = await loadProducts();
+    await renderReport(results, reportCode, data.is_mock);
+    goStep(3);
+
+    // Show saved date from DB
+    document.getElementById('rptDate').textContent =
+      'Analysed ' + new Date(data.created_at).toLocaleDateString('en-IN',
+        { day:'numeric', month:'long', year:'numeric' });
+
+  } catch(e) {
+    showBanner('Could not load report: ' + e.message);
+    goStep(1);
+  }
+}
 </script>
 </body>
 </html>
