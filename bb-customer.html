@@ -415,10 +415,10 @@ main{max-width:900px;margin:0 auto;padding:28px 18px 80px}
 // ╔══════════════════════════════════════════════════════╗
 // ║           CONFIGURATION — FILL THESE IN             ║
 // ╚══════════════════════════════════════════════════════╝
-const SUPABASE_URL  = 'https://uottuqqttklxcesxhijw.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_SFPzqaiDkGN_BUonCsL9Kw_p5yiZWrk';
-const YOUCAM_API_KEY   = 'sk-_DqRLIN1iHacG-RHKf8RCjqTKx060p6bxz4QrAUal14AGW2Jg5F50ML_fh6TMr37';
-const YOUCAM_API_BASE  = 'https://yce-api-01.makeupar.com/s2s/v2.0';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON    = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const YOUCAM_API_KEY   = 'YOUR_YOUCAM_API_KEY_HERE';
+const YOUCAM_API_BASE  = 'https://api-sdk.perfectcorp.com/s2s/v1.1';
 
 // ─── Supabase client ───────────────────────────────────
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -1052,61 +1052,48 @@ async function buildAndSaveReportPage(results, reportCode, products, dateStr, is
 </html>`;
 
   // ── Upload report HTML to Supabase Storage ──────────────────
-  // We use the JS SDK but wrap the string in a File object (not Blob).
-  // File objects carry a .name with extension, which forces the SDK to
-  // detect 'text/html' correctly instead of defaulting to 'text/plain'.
+  // Uses multipart/form-data — the ONLY method that correctly sets
+  // Content-Type to text/html in Supabase Storage from a browser.
+  // All other methods (SDK Blob, fetch with Content-Type header) result
+  // in the file being stored and served as text/plain.
   const fileName  = `${reportCode}.html`;
   const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/reports/${fileName}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/reports/${fileName}`;
 
   try {
-    // Wrap HTML string in a File — this is the key fix.
-    // File extends Blob but the SDK reads the .name extension to set MIME type.
-    const file = new File([reportHTML], fileName, { type: 'text/html' });
+    // Build a FormData with the file as a Blob that has the correct MIME type.
+    // multipart/form-data preserves the Blob's type as the stored content-type.
+    const formData = new FormData();
+    formData.append(
+      'file',
+      new Blob([reportHTML], { type: 'text/html' }),
+      fileName
+    );
 
-    const { error } = await sb.storage
-      .from('reports')
-      .upload(fileName, file, {
-        contentType: 'text/html',
-        cacheControl: '3600',
-        upsert: true,
-      });
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'apikey':        SUPABASE_ANON,
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'x-upsert':      'true',
+        // Do NOT set Content-Type here — browser sets it automatically
+        // with the correct multipart boundary when using FormData
+      },
+      body: formData,
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => res.status);
+      throw new Error(`Upload failed (${res.status}): ${errBody}`);
+    }
 
-    console.log('✅ Report saved:', publicUrl);
+    console.log('✅ Report uploaded as text/html:', publicUrl);
     return publicUrl;
 
   } catch(e) {
-    console.error('❌ Storage upload error:', e.message);
-
-    // ── Hard fallback: use raw fetch with apikey header ──────
-    // Supabase Storage REST API requires both apikey AND Authorization headers.
-    try {
-      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/reports/${fileName}`;
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'apikey':        SUPABASE_ANON,
-          'Authorization': `Bearer ${SUPABASE_ANON}`,
-          'Content-Type':  'text/html',
-          'x-upsert':      'true',
-        },
-        body: reportHTML,
-      });
-
-      if (res.ok) {
-        console.log('✅ Report saved via REST fallback:', publicUrl);
-        return publicUrl;
-      }
-
-      const errBody = await res.text().catch(() => '');
-      throw new Error(`REST upload ${res.status}: ${errBody}`);
-
-    } catch(e2) {
-      console.error('❌ REST fallback also failed:', e2.message);
-      // Final fallback: in-app URL with report code
-      return window.location.href.split('?')[0] + '?report=' + reportCode;
-    }
+    console.error('❌ Storage upload failed:', e.message);
+    // Fallback: in-app URL — loadSavedReport() will handle it
+    return window.location.href.split('?')[0] + '?report=' + reportCode;
   }
 }
 
@@ -1166,18 +1153,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ══════════════════════════════════════════
 function checkCustomerAuth() {
   const raw = sessionStorage.getItem('bb_customer_auth');
-  if (!raw) { window.location.href = 'index.html'; return null; }
+  if (!raw) { window.location.href = 'customer-login.html'; return null; }
   try {
     const sess = JSON.parse(raw);
     // Session expires after 12 hours
     if (Date.now() - sess.loginAt > 12 * 60 * 60 * 1000) {
       sessionStorage.removeItem('bb_customer_auth');
-      window.location.href = 'index.html';
+      window.location.href = 'customer-login.html';
       return null;
     }
     return sess;
   } catch(e) {
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
     return null;
   }
 }
@@ -1185,7 +1172,7 @@ function checkCustomerAuth() {
 function logout() {
   if (confirm('Log out?')) {
     sessionStorage.removeItem('bb_customer_auth');
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
   }
 }
 
