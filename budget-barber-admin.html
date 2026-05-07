@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Barber — Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --cream:#FAF8F5;--white:#FFFFFF;--sage:#7A9E7E;--sage-light:#EAF2EB;--sage-dark:#4A7150;
+  --charcoal:#2C2C2A;--mid:#5F5E5A;--light:#B4B2A9;--border:#E8E6E1;
+  --amber:#D4860B;--amber-light:#FDF3E3;--red:#C0392B;--red-light:#FDF0EE;
+  --blue:#2471A3;--blue-light:#EEF4FB;
+  --sw:230px;--r:12px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charcoal);min-height:100vh;display:flex}
+
+/* SIDEBAR */
+aside{width:var(--sw);background:var(--charcoal);min-height:100vh;display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:200}
+.sb-logo{padding:22px 18px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo-name{font-family:'DM Serif Display',serif;font-size:17px;color:#fff}
+.sb-logo-sub{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.sb-nav{padding:18px 10px;flex:1;overflow-y:auto}
+.sb-section{font-size:10px;font-weight:500;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;padding:0 8px;margin-bottom:7px;margin-top:18px}
+.sb-section:first-child{margin-top:0}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--rs);cursor:pointer;font-size:13px;color:rgba(255,255,255,.55);transition:all .15s;margin-bottom:2px;text-decoration:none;border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif}
+.ni:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85)}
+.ni.active{background:rgba(122,158,126,.22);color:var(--sage)}
+.ni svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.ni-badge{margin-left:auto;background:rgba(255,255,255,.1);color:rgba(255,255,255,.45);font-size:11px;font-weight:500;padding:1px 7px;border-radius:10px}
+.ni.active .ni-badge{background:rgba(122,158,126,.3);color:var(--sage)}
+.sb-footer{padding:14px 10px;border-top:1px solid rgba(255,255,255,.08)}
+
+/* MAIN */
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* TOPBAR */
+.topbar{background:var(--white);border-bottom:1px solid var(--border);height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:100}
+.tb-title{font-size:16px;font-weight:500}
+.tb-right{display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;background:var(--sage-light);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--sage-dark)}
+
+/* CONTENT */
+.content{padding:28px;flex:1}
+.view{display:none}
+.view.active{display:block}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.sc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:7px}
+.sc-icon{width:38px;height:38px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center}
+.sc-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+.ic-green{background:var(--sage-light);color:var(--sage-dark)}
+.ic-blue{background:var(--blue-light);color:var(--blue)}
+.ic-amber{background:var(--amber-light);color:var(--amber)}
+.ic-red{background:var(--red-light);color:var(--red)}
+.sc-val{font-size:26px;font-weight:600;line-height:1}
+.sc-lbl{font-size:12px;color:var(--mid)}
+.sc-sub{font-size:11px;color:var(--light)}
+
+/* SECTION HEADER */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.sh h2{font-size:16px;font-weight:500}
+.sh p{font-size:12px;color:var(--mid);margin-top:2px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .2s;white-space:nowrap}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+.btn-primary{background:var(--charcoal);color:#fff}
+.btn-primary:hover{background:#3a3a38}
+.btn-secondary{background:var(--white);color:var(--charcoal);border:1.5px solid var(--border)}
+.btn-secondary:hover{border-color:var(--sage);color:var(--sage-dark)}
+.btn-sage{background:var(--sage);color:#fff}
+.btn-sage:hover{background:var(--sage-dark)}
+.btn-danger{background:var(--red-light);color:var(--red);border:1px solid #f0c0bb}
+.btn-danger:hover{background:#fcd8d4}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-lg{padding:10px 22px;font-size:14px}
+
+/* TABLE */
+.tw{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:1px solid var(--border);background:var(--cream)}
+th{text-align:left;padding:11px 14px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--mid)}
+td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--cream)}
+.td-bold{font-weight:500}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.b-active{background:var(--sage-light);color:var(--sage-dark);border:1px solid #c5dcc8}
+.b-inactive{background:var(--cream);color:var(--mid);border:1px solid var(--border)}
+.b-yes{background:var(--sage-light);color:var(--sage-dark)}
+.b-no{background:var(--cream);color:var(--mid)}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.d-green{background:var(--sage)}
+.d-gray{background:var(--light)}
+.act-row{display:flex;gap:5px;flex-wrap:wrap}
+code{font-size:11px;background:var(--cream);padding:2px 7px;border-radius:4px;border:1px solid var(--border)}
+
+/* PARAMS GRID */
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(295px,1fr));gap:14px}
+.pc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.pc-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.pc-name{font-size:14px;font-weight:500}
+.pc-desc{font-size:11px;color:var(--mid);margin-top:2px}
+.pc-body{padding:12px 16px}
+.pp-row{display:flex;align-items:center;gap:8px;padding:8px 9px;border:1px solid var(--border);border-radius:var(--rs);margin-bottom:7px;background:var(--cream)}
+.pp-emoji{font-size:18px;width:26px;text-align:center;flex-shrink:0}
+.pp-info{flex:1;min-width:0}
+.pp-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-url{font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-del{cursor:pointer;color:var(--light);padding:4px;flex-shrink:0;border:none;background:none;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:color .15s}
+.pp-del:hover{color:var(--red)}
+.pp-del svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+.add-prod-btn{width:100%;padding:8px;border:1.5px dashed var(--border);border-radius:var(--rs);background:none;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--mid);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.add-prod-btn:hover{border-color:var(--sage);color:var(--sage-dark);background:var(--sage-light)}
+.add-prod-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* SETTINGS */
+.ss{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:18px;overflow:hidden}
+.ss-head{padding:16px 22px;border-bottom:1px solid var(--border);font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
+.ss-head svg{width:16px;height:16px;stroke:var(--sage-dark);fill:none;stroke-width:2}
+.ss-body{padding:18px 22px}
+.sr{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
+.sr:last-child{border-bottom:none}
+.sr-info h4{font-size:13px;font-weight:500;margin-bottom:2px}
+.sr-info p{font-size:11px;color:var(--mid)}
+.toggle{width:42px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle.on{background:var(--sage)}
+.toggle.on::after{transform:translateX(20px)}
+
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(44,44,42,.45);z-index:500;align-items:center;justify-content:center;padding:20px}
+.mo.open{display:flex}
+.modal{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:0 16px 48px rgba(0,0,0,.15);width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
+.mh{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1}
+.mh h3{font-size:15px;font-weight:500}
+.mc{cursor:pointer;color:var(--mid);padding:4px;border:none;background:none;border-radius:4px;display:flex}
+.mc:hover{color:var(--charcoal)}
+.mc svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2}
+.mb{padding:22px}
+.mf{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+
+/* FORM */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--charcoal);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--charcoal);background:var(--white);outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--sage)}
+.field input[readonly]{background:var(--cream);cursor:default}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-hint{font-size:11px;color:var(--mid);margin-top:4px}
+
+/* EMPTY */
+.empty{text-align:center;padding:40px 24px;color:var(--mid)}
+.empty svg{width:40px;height:40px;stroke:var(--light);fill:none;stroke-width:1.2;margin-bottom:10px}
+.empty h3{font-size:14px;font-weight:500;margin-bottom:3px;color:var(--charcoal)}
+.empty p{font-size:12px}
+
+/* LOADING */
+.loading{text-align:center;padding:24px;color:var(--light);font-size:13px}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;left:calc(var(--sw) + 50%);transform:translateX(-50%) translateY(80px);background:var(--charcoal);color:#fff;padding:11px 22px;border-radius:40px;font-size:13px;font-weight:500;z-index:999;transition:transform .3s;white-space:nowrap;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* SUCCESS / ERROR inline */
+.alert{padding:10px 14px;border-radius:var(--rs);font-size:12px;margin-bottom:14px;display:none}
+.alert-success{background:var(--sage-light);color:var(--sage-dark);border:1px solid #c5dcc8}
+.alert-error{background:var(--red-light);color:var(--red);border:1px solid #f0c0bb}
+
+@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="sb-logo">
+    <div class="sb-logo-name">Budget Barber</div>
+    <div class="sb-logo-sub">Admin Panel</div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Overview</div>
+    <button class="ni active" onclick="showView('dashboard',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
+
+    <div class="sb-section">Management</div>
+    <button class="ni" onclick="showView('customers',this)">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Franchise Owners
+      <span class="ni-badge" id="sbCustCount">0</span>
+    </button>
+    <button class="ni" onclick="showView('parameters',this)">
+      <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Skin Parameters
+      <span class="ni-badge">9</span>
+    </button>
+    <button class="ni" onclick="showView('reports',this)">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Reports
+      <span class="ni-badge" id="sbRptCount">0</span>
+    </button>
+
+    <div class="sb-section">Config</div>
+    <button class="ni" onclick="showView('settings',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+  <div class="sb-footer">
+    <a class="ni" href="budget-barber-customer.html" target="_blank">
+      <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Customer App
+    </a>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tb-title" id="viewTitle">Dashboard</div>
+    <div class="tb-right">
+      <button class="btn btn-primary" id="tbBtn" style="display:none" onclick="tbAction()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span id="tbBtnLabel">Add</span>
+      </button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="adminName" style="font-size:12px;color:var(--mid)"></span>
+        <div class="avatar" id="adminAvatar">BB</div>
+        <button class="btn btn-secondary btn-sm" onclick="logout()" title="Log out" style="padding:5px 10px">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ════ DASHBOARD ════ -->
+    <div class="view active" id="view-dashboard">
+      <div class="stats">
+        <div class="sc">
+          <div class="sc-icon ic-green"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+          <div class="sc-val" id="dCust">—</div>
+          <div class="sc-lbl">Franchise Owners</div>
+          <div class="sc-sub" id="dCustActive">Loading…</div>
+        </div>
+        <div class="sc">
+          <div class="sc-icon ic-blue"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div>
+          <div class="sc-val" id="dRpts">—</div>
+          <div class="sc-lbl">Analyses Done</div>
+          <div class="sc-sub" id="dRptMock">Loading…</div>
+        </div>
+        <div class="sc">
+          <div class="sc-icon ic-amber"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
+          <div class="sc-val">9</div>
+          <div class="sc-lbl">Active Parameters</div>
+          <div class="sc-sub">14 total planned</div>
+        </div>
+        <div class="sc">
+          <div class="sc-icon ic-green"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg></div>
+          <div class="sc-val" id="dProds">—</div>
+          <div class="sc-lbl">Products Linked</div>
+          <div class="sc-sub">Across all params</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div class="tw">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:500">Recent Owners</div>
+          <table><thead><tr><th>Name</th><th>Location</th><th>Status</th></tr></thead>
+          <tbody id="dCustTbl"><tr><td colspan="3" class="loading">Loading…</td></tr></tbody></table>
+        </div>
+        <div class="tw">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:500">Parameter Status</div>
+          <table><thead><tr><th>Parameter</th><th>Products</th><th>Ready</th></tr></thead>
+          <tbody id="dParamTbl"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ CUSTOMERS ════ -->
+    <div class="view" id="view-customers">
+      <div class="sh"><div><h2>Franchise Owners</h2><p>Manage access to the skin analysis app</p></div></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Name</th><th>Location</th><th>Email</th><th>Phone</th><th>Access Code</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="custTbl"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════ PARAMETERS ════ -->
+    <div class="view" id="view-parameters">
+      <div class="sh"><div><h2>Skin Parameters & Products</h2><p>Attach products to each parameter — they appear in customer reports with buy links</p></div></div>
+      <div class="pg" id="pgGrid"><div class="loading">Loading…</div></div>
+    </div>
+
+    <!-- ════ REPORTS ════ -->
+    <div class="view" id="view-reports">
+      <div class="sh"><div><h2>Analysis Reports</h2><p>All skin analyses from franchise owners</p></div></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Report Code</th><th>Skin Type</th><th>Skin Age</th><th>Overall Score</th><th>Mode</th><th>Date</th></tr></thead>
+          <tbody id="rptTbl"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════ SETTINGS ════ -->
+    <div class="view" id="view-settings">
+      <div class="sh"><div><h2>Settings</h2><p>Configure your skin analysis platform</p></div></div>
+
+      <div class="ss">
+        <div class="ss-head">
+          <svg viewBox="0 0 24 24"><path d="M15 7h3a5 5 0 010 10h-3m-6 0H6A5 5 0 016 7h3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          API Configuration
+        </div>
+        <div class="ss-body">
+          <div id="settingsAlert" class="alert"></div>
+          <div class="field"><label>YouCam API Key</label><input type="password" id="sApiKey" placeholder="YOUR_YOUCAM_API_KEY_HERE"></div>
+          <div class="field"><label>Supabase URL</label><input type="text" id="sSbUrl" placeholder="https://xxxx.supabase.co"></div>
+          <div class="field"><label>Supabase Anon Key</label><input type="password" id="sSbAnon" placeholder="eyJhb..."></div>
+          <div class="field-row">
+            <div class="field">
+              <label>Analysis Mode</label>
+              <select id="sMode"><option value="SD">SD — Standard (edge)</option><option value="HD">HD — High Definition</option></select>
+            </div>
+            <div class="field">
+              <label>API Version</label>
+              <select id="sApiVer"><option value="v1.1">v1.1 (recommended)</option><option value="v1.0">v1.0 (legacy)</option></select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveSettings()">
+            <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+            Save Settings
+          </button>
+        </div>
+      </div>
+
+      <div class="ss">
+        <div class="ss-head"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Customer App</div>
+        <div class="ss-body">
+          <div class="sr"><div class="sr-info"><h4>Show product recommendations</h4><p>Display linked products on skin reports</p></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+          <div class="sr"><div class="sr-info"><h4>QR code sharing</h4><p>Allow customers to share reports via QR</p></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+          <div class="sr"><div class="sr-info"><h4>Auto demo mode</h4><p>Use mock results when API unavailable</p></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ MODAL: Add/Edit Customer ══ -->
+<div class="mo" id="moCust">
+  <div class="modal">
+    <div class="mh"><h3 id="moCustTitle">Add Franchise Owner</h3><button class="mc" onclick="closeMo('moCust')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="mb">
+      <input type="hidden" id="cEditId">
+      <div class="field-row">
+        <div class="field"><label>Full Name *</label><input type="text" id="cName" placeholder="John Smith"></div>
+        <div class="field"><label>Branch / Location</label><input type="text" id="cLoc" placeholder="Mumbai — Andheri"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Email</label><input type="email" id="cEmail" placeholder="john@example.com"></div>
+        <div class="field"><label>Phone</label><input type="tel" id="cPhone" placeholder="+91 98765 43210"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Access Code</label>
+          <input type="text" id="cCode" readonly>
+          <div class="field-hint">Auto-generated reference code</div>
+        </div>
+        <div class="field"><label>Status</label><select id="cStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>6-Digit Login PIN</label>
+          <input type="text" id="cPin" placeholder="e.g. 123456" maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+          <div class="field-hint">Owner uses this PIN to log in. Leave blank to keep existing PIN.</div>
+        </div>
+        <div class="field">
+          <label>Confirm PIN</label>
+          <input type="text" id="cPinConfirm" placeholder="Re-enter PIN" maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+        </div>
+      </div>
+      <div id="custSaveErr" class="alert alert-error"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-secondary" onclick="closeMo('moCust')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCustomer()" id="custSaveBtn">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        Save Owner
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add Product ══ -->
+<div class="mo" id="moProd">
+  <div class="modal">
+    <div class="mh"><h3>Add Product — <span id="moProdParam"></span></h3><button class="mc" onclick="closeMo('moProd')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="mb">
+      <input type="hidden" id="pParamId">
+      <div class="field-row">
+        <div class="field"><label>Product Name *</label><input type="text" id="pName" placeholder="Vitamin C Serum"></div>
+        <div class="field"><label>Brand</label><input type="text" id="pBrand" placeholder="The Ordinary"></div>
+      </div>
+      <div class="field"><label>Product URL (Buy Link)</label><input type="url" id="pUrl" placeholder="https://example.com/product"></div>
+      <div class="field-row">
+        <div class="field"><label>Price</label><input type="text" id="pPrice" placeholder="₹499"></div>
+        <div class="field"><label>Icon Emoji</label><input type="text" id="pEmoji" placeholder="🧴" maxlength="4"></div>
+      </div>
+      <div id="prodSaveErr" class="alert alert-error"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-secondary" onclick="closeMo('moProd')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProduct()" id="prodSaveBtn">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        Add Product
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════════════════╗
+// ║           CONFIGURATION — FILL THESE IN             ║
+// ╚══════════════════════════════════════════════════════╝
+const SUPABASE_URL  = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON = 'YOUR_SUPABASE_ANON_KEY_HERE';
+
+// ─── Supabase client ───────────────────────────────────
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ─── Parameters definition ────────────────────────────
+const PARAMS = [
+  { id:'spots',       label:'Spots',       desc:'Pigmentation & dark marks' },
+  { id:'wrinkles',    label:'Wrinkles',     desc:'Fine lines & expression lines' },
+  { id:'oiliness',    label:'Oiliness',     desc:'Sebum & shine levels' },
+  { id:'moisture',    label:'Moisture',     desc:'Hydration & water content' },
+  { id:'acne',        label:'Acne',         desc:'Breakouts & blemishes' },
+  { id:'firmness',    label:'Firmness',     desc:'Skin elasticity & tone' },
+  { id:'radiance',    label:'Radiance',     desc:'Overall glow & brightness' },
+  { id:'eyebag',      label:'Eye Bag',      desc:'Puffiness under eyes' },
+  { id:'dark_circle', label:'Dark Circles', desc:'Under-eye discolouration' },
+];
+
+// ─── View config ───────────────────────────────────────
+let currentView = 'dashboard';
+const VIEW_CFG = {
+  dashboard:  { title:'Dashboard',             btn:null },
+  customers:  { title:'Franchise Owners',      btn:{ label:'Add Owner',    fn:()=>openCustModal() } },
+  parameters: { title:'Skin Parameters',       btn:null },
+  reports:    { title:'Analysis Reports',      btn:null },
+  settings:   { title:'Settings',              btn:null },
+};
+
+function showView(name, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  if (el) el.classList.add('active');
+  currentView = name;
+
+  const cfg = VIEW_CFG[name];
+  document.getElementById('viewTitle').textContent = cfg.title;
+  const tbBtn = document.getElementById('tbBtn');
+  if (cfg.btn) { tbBtn.style.display=''; document.getElementById('tbBtnLabel').textContent=cfg.btn.label; }
+  else tbBtn.style.display='none';
+
+  if (name==='customers')  loadCustomers();
+  if (name==='parameters') loadParameters();
+  if (name==='reports')    loadReports();
+  if (name==='dashboard')  loadDashboard();
+}
+
+function tbAction() { VIEW_CFG[currentView]?.btn?.fn(); }
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const [custRes, rptRes, prodRes] = await Promise.all([
+      sb.from('bb_customers').select('id,name,location,status'),
+      sb.from('bb_reports').select('id,is_mock'),
+      sb.from('bb_products').select('id').eq('active',true),
+    ]);
+
+    const custs = custRes.data || [];
+    const rpts  = rptRes.data  || [];
+    const prods = prodRes.data || [];
+
+    document.getElementById('dCust').textContent      = custs.length;
+    document.getElementById('dCustActive').textContent = custs.filter(c=>c.status==='active').length + ' active';
+    document.getElementById('dRpts').textContent       = rpts.length;
+    document.getElementById('dRptMock').textContent    = rpts.filter(r=>r.is_mock).length + ' demo runs';
+    document.getElementById('dProds').textContent      = prods.length;
+    document.getElementById('sbCustCount').textContent = custs.length;
+    document.getElementById('sbRptCount').textContent  = rpts.length;
+
+    // Recent customers
+    const dct = document.getElementById('dCustTbl');
+    if (custs.length===0) { dct.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--light);padding:20px;font-size:12px">No owners yet</td></tr>'; }
+    else dct.innerHTML = custs.slice(0,5).map(c=>`
+      <tr>
+        <td class="td-bold">${esc(c.name)}</td>
+        <td style="color:var(--mid)">${esc(c.location||'—')}</td>
+        <td><span class="badge ${c.status==='active'?'b-active':'b-inactive'}">
+          <span class="dot ${c.status==='active'?'d-green':'d-gray'}"></span>${c.status==='active'?'Active':'Inactive'}
+        </span></td>
+      </tr>`).join('');
+
+    // Parameter table
+    const prodByParam = {};
+    const { data:allProds } = await sb.from('bb_products').select('param_id').eq('active',true);
+    (allProds||[]).forEach(p => { prodByParam[p.param_id]=(prodByParam[p.param_id]||0)+1; });
+    document.getElementById('dParamTbl').innerHTML = PARAMS.map(p => {
+      const cnt = prodByParam[p.id]||0;
+      return `<tr>
+        <td class="td-bold">${p.label}</td>
+        <td>${cnt}</td>
+        <td><span class="badge ${cnt>0?'b-yes':'b-no'}">${cnt>0?'Ready':'Pending'}</span></td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) { console.error('Dashboard error:', e); }
+}
+
+// ══════════════════════════════════════════════════════
+// CUSTOMERS
+// ══════════════════════════════════════════════════════
+async function loadCustomers() {
+  const tbody = document.getElementById('custTbl');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+  try {
+    const { data, error } = await sb.from('bb_customers').select('*').order('created_at', { ascending:false });
+    if (error) throw error;
+    if (!data||data.length===0) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <h3>No franchise owners yet</h3><p>Click "Add Owner" above to get started</p>
+      </div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td class="td-bold">${esc(c.name)}</td>
+        <td>${esc(c.location||'—')}</td>
+        <td>${esc(c.email||'—')}</td>
+        <td>${esc(c.phone||'—')}</td>
+        <td><code>${esc(c.access_code)}</code></td>
+        <td><span class="badge ${c.status==='active'?'b-active':'b-inactive'}">
+          <span class="dot ${c.status==='active'?'d-green':'d-gray'}"></span>${c.status==='active'?'Active':'Inactive'}
+        </span></td>
+        <td><div class="act-row">
+          <button class="btn btn-secondary btn-sm" onclick="openCustModal('${c.id}')">Edit</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleCustStatus('${c.id}','${c.status}')">${c.status==='active'?'Deactivate':'Activate'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCustomer('${c.id}')">Delete</button>
+        </div></td>
+      </tr>`).join('');
+    document.getElementById('sbCustCount').textContent = data.length;
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red);padding:16px;font-size:12px">Error loading data: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function openCustModal(id) {
+  document.getElementById('custSaveErr').style.display='none';
+  document.getElementById('moCustTitle').textContent = id ? 'Edit Franchise Owner' : 'Add Franchise Owner';
+  document.getElementById('cEditId').value = id||'';
+  if (!id) {
+    document.getElementById('cName').value='';
+    document.getElementById('cLoc').value='';
+    document.getElementById('cEmail').value='';
+    document.getElementById('cPhone').value='';
+    document.getElementById('cCode').value='BB-'+Math.random().toString(36).substr(2,6).toUpperCase();
+    document.getElementById('cStatus').value='active';
+    openMo('moCust'); return;
+  }
+  // Load existing
+  sb.from('bb_customers').select('*').eq('id',id).single().then(({data,error})=>{
+    if (error||!data) { showToast('Could not load owner data'); return; }
+    document.getElementById('cName').value  = data.name||'';
+    document.getElementById('cLoc').value   = data.location||'';
+    document.getElementById('cEmail').value = data.email||'';
+    document.getElementById('cPhone').value = data.phone||'';
+    document.getElementById('cCode').value  = data.access_code||'';
+    document.getElementById('cStatus').value= data.status||'active';
+    document.getElementById('cPin').value='';
+    document.getElementById('cPinConfirm').value='';
+    openMo('moCust');
+  });
+}
+
+async function saveCustomer() {
+  const errEl = document.getElementById('custSaveErr');
+  errEl.style.display='none';
+  const id   = document.getElementById('cEditId').value;
+  const name = document.getElementById('cName').value.trim();
+  if (!name) { showFieldErr('custSaveErr','Name is required'); return; }
+
+  const pinVal     = document.getElementById('cPin').value.trim();
+  const pinConfirm = document.getElementById('cPinConfirm').value.trim();
+  if (pinVal) {
+    if (!/^[0-9]{6}$/.test(pinVal)) { showFieldErr('custSaveErr','PIN must be exactly 6 digits (numbers only)'); return; }
+    if (pinVal !== pinConfirm)       { showFieldErr('custSaveErr','PINs do not match'); return; }
+  }
+
+  const payload = {
+    name,
+    location:    document.getElementById('cLoc').value.trim()||null,
+    email:       document.getElementById('cEmail').value.trim()||null,
+    phone:       document.getElementById('cPhone').value.trim()||null,
+    access_code: document.getElementById('cCode').value.trim(),
+    status:      document.getElementById('cStatus').value,
+    updated_at:  new Date().toISOString(),
+  };
+  if (pinVal) payload.pin = pinVal;
+
+  const btn = document.getElementById('custSaveBtn');
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    let error;
+    if (id) {
+      ({ error } = await sb.from('bb_customers').update(payload).eq('id',id));
+    } else {
+      ({ error } = await sb.from('bb_customers').insert(payload));
+    }
+    if (error) throw error;
+    closeMo('moCust');
+    await loadCustomers();
+    await loadDashboard();
+    showToast(id ? 'Owner updated' : 'Owner added');
+  } catch(e) {
+    showFieldErr('custSaveErr', e.message);
+  } finally {
+    btn.disabled=false; btn.textContent='Save Owner';
+  }
+}
+
+async function toggleCustStatus(id, current) {
+  const newStatus = current==='active' ? 'inactive' : 'active';
+  const { error } = await sb.from('bb_customers').update({ status:newStatus, updated_at:new Date().toISOString() }).eq('id',id);
+  if (error) { showToast('Error: '+error.message); return; }
+  await loadCustomers();
+  showToast(newStatus==='active' ? 'Owner activated' : 'Owner deactivated');
+}
+
+async function deleteCustomer(id) {
+  if (!confirm('Permanently remove this franchise owner?')) return;
+  const { error } = await sb.from('bb_customers').delete().eq('id',id);
+  if (error) { showToast('Error: '+error.message); return; }
+  await loadCustomers();
+  await loadDashboard();
+  showToast('Owner removed');
+}
+
+// ══════════════════════════════════════════════════════
+// PARAMETERS & PRODUCTS
+// ══════════════════════════════════════════════════════
+async function loadParameters() {
+  const grid = document.getElementById('pgGrid');
+  grid.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const { data, error } = await sb.from('bb_products').select('*').eq('active',true).order('sort_order');
+    if (error) throw error;
+    const byParam = {};
+    (data||[]).forEach(p => { (byParam[p.param_id]=byParam[p.param_id]||[]).push(p); });
+
+    grid.innerHTML = PARAMS.map(p => {
+      const prods = byParam[p.id]||[];
+      return `
+        <div class="pc">
+          <div class="pc-head">
+            <div>
+              <div class="pc-name">${p.label}</div>
+              <div class="pc-desc">${p.desc}</div>
+            </div>
+            <span class="badge ${prods.length>0?'b-active':'b-inactive'}">${prods.length} product${prods.length!==1?'s':''}</span>
+          </div>
+          <div class="pc-body" id="pb-${p.id}">
+            ${prods.map(pr=>`
+              <div class="pp-row">
+                <div class="pp-emoji">${pr.emoji||'🧴'}</div>
+                <div class="pp-info">
+                  <div class="pp-name">${esc(pr.name)}${pr.price?' · '+esc(pr.price):''}</div>
+                  <div class="pp-url">${esc(pr.url||pr.brand||'No link')}</div>
+                </div>
+                <button class="pp-del" onclick="deleteProduct('${pr.id}','${p.id}')" title="Remove">
+                  <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                </button>
+              </div>`).join('')}
+            <button class="add-prod-btn" onclick="openProdModal('${p.id}','${p.label}')">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add product
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function openProdModal(paramId, paramLabel) {
+  document.getElementById('prodSaveErr').style.display='none';
+  document.getElementById('moProdParam').textContent = paramLabel;
+  document.getElementById('pParamId').value = paramId;
+  document.getElementById('pName').value='';
+  document.getElementById('pBrand').value='';
+  document.getElementById('pUrl').value='';
+  document.getElementById('pPrice').value='';
+  document.getElementById('pEmoji').value='🧴';
+  openMo('moProd');
+}
+
+async function saveProduct() {
+  document.getElementById('prodSaveErr').style.display='none';
+  const paramId = document.getElementById('pParamId').value;
+  const name    = document.getElementById('pName').value.trim();
+  if (!name) { showFieldErr('prodSaveErr','Product name is required'); return; }
+
+  const payload = {
+    param_id: paramId,
+    name,
+    brand:   document.getElementById('pBrand').value.trim()||null,
+    url:     document.getElementById('pUrl').value.trim()||null,
+    price:   document.getElementById('pPrice').value.trim()||null,
+    emoji:   document.getElementById('pEmoji').value.trim()||'🧴',
+    active:  true,
+  };
+
+  const btn = document.getElementById('prodSaveBtn');
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const { error } = await sb.from('bb_products').insert(payload);
+    if (error) throw error;
+    closeMo('moProd');
+    await loadParameters();
+    await loadDashboard();
+    showToast('Product added');
+  } catch(e) {
+    showFieldErr('prodSaveErr', e.message);
+  } finally {
+    btn.disabled=false; btn.textContent='Add Product';
+  }
+}
+
+async function deleteProduct(prodId, paramId) {
+  if (!confirm('Remove this product?')) return;
+  const { error } = await sb.from('bb_products').delete().eq('id',prodId);
+  if (error) { showToast('Error: '+error.message); return; }
+  await loadParameters();
+  showToast('Product removed');
+}
+
+// ══════════════════════════════════════════════════════
+// REPORTS
+// ══════════════════════════════════════════════════════
+async function loadReports() {
+  const tbody = document.getElementById('rptTbl');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+  try {
+    const { data, error } = await sb.from('bb_reports').select('*').order('created_at',{ascending:false}).limit(50);
+    if (error) throw error;
+    if (!data||data.length===0) {
+      tbody.innerHTML=`<tr><td colspan="6"><div class="empty">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
+        <h3>No reports yet</h3><p>Reports appear once customers run skin analyses</p>
+      </div></td></tr>`; return;
+    }
+    tbody.innerHTML = data.map(r => {
+      const scores = r.scores||{};
+      const vals   = Object.values(scores).map(Number).filter(v=>!isNaN(v));
+      const avg    = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : '—';
+      return `<tr>
+        <td><code>${esc(r.report_code)}</code></td>
+        <td>${esc(r.skin_type||'—')}</td>
+        <td>${r.skin_age||'—'}</td>
+        <td>${avg}/100</td>
+        <td><span class="badge ${r.is_mock?'b-inactive':'b-active'}">${r.is_mock?'Demo':'Live'}</span></td>
+        <td style="color:var(--mid)">${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('sbRptCount').textContent=data.length;
+  } catch(e) {
+    tbody.innerHTML=`<tr><td colspan="6" style="color:var(--red);padding:16px;font-size:12px">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════
+function saveSettings() {
+  const alert=document.getElementById('settingsAlert');
+  alert.className='alert alert-success';
+  alert.textContent='Settings saved. Update the placeholders in your HTML files with the values above.';
+  alert.style.display='block';
+  setTimeout(()=>alert.style.display='none', 4000);
+  showToast('Settings noted');
+}
+
+// ══════════════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════════════
+function openMo(id)  { document.getElementById(id).classList.add('open'); }
+function closeMo(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.mo').forEach(m => {
+  m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); });
+});
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showFieldErr(elId, msg) {
+  const el=document.getElementById(elId);
+  el.textContent=msg; el.style.display='block';
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ══════════════════════════════════════════
+// AUTH GUARD
+// ══════════════════════════════════════════
+function checkAdminAuth() {
+  const raw = sessionStorage.getItem('bb_admin_auth');
+  if (!raw) { window.location.href = 'admin-login.html'; return null; }
+  try {
+    const sess = JSON.parse(raw);
+    if (Date.now() - sess.loginAt > 8 * 60 * 60 * 1000) {
+      sessionStorage.removeItem('bb_admin_auth');
+      window.location.href = 'admin-login.html';
+      return null;
+    }
+    return sess;
+  } catch(e) {
+    window.location.href = 'admin-login.html';
+    return null;
+  }
+}
+
+function logout() {
+  if (confirm('Log out of admin panel?')) {
+    sessionStorage.removeItem('bb_admin_auth');
+    window.location.href = 'admin-login.html';
+  }
+}
+
+// ── INIT ──
+const adminSess = checkAdminAuth();
+if (adminSess) {
+  const name = adminSess.name || 'Admin';
+  document.getElementById('adminName').textContent = name;
+  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('adminAvatar').textContent = initials || 'BB';
+  loadDashboard();
+}
+</script>
+</body>
+</html>

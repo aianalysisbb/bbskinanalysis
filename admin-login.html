@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Barber — Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --cream: #FAF8F5;
+  --white: #FFFFFF;
+  --sage: #7A9E7E;
+  --sage-light: #EAF2EB;
+  --sage-dark: #4A7150;
+  --charcoal: #2C2C2A;
+  --mid: #5F5E5A;
+  --light: #B4B2A9;
+  --border: #E8E6E1;
+  --red: #C0392B;
+  --red-light: #FDF0EE;
+  --r: 14px;
+  --rs: 9px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--cream);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,.08);
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+/* TOP BAR */
+.card-top {
+  background: var(--charcoal);
+  padding: 28px 32px 24px;
+  text-align: center;
+}
+.logo-icon {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,.1);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.logo-icon svg { width: 24px; height: 24px; fill: var(--white); }
+.card-top h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--white);
+  margin-bottom: 4px;
+}
+.card-top p {
+  font-size: 12px;
+  color: rgba(255,255,255,.45);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* BODY */
+.card-body { padding: 28px 32px 32px; }
+
+.field { margin-bottom: 18px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  margin-bottom: 7px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.field input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  color: var(--charcoal);
+  background: var(--white);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+}
+.field input:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px rgba(122,158,126,.12);
+}
+.field input::placeholder { color: var(--light); }
+
+/* PIN INPUT */
+.pin-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.pin-digit {
+  width: 100%;
+  height: 52px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--rs);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--charcoal);
+  background: var(--white);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+  caret-color: transparent;
+}
+.pin-digit:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px rgba(122,158,126,.12);
+}
+.pin-digit.filled { background: var(--sage-light); border-color: #c5dcc8; }
+
+/* SHOW/HIDE PIN */
+.pin-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.pin-toggle input[type=checkbox] { accent-color: var(--sage); width: 14px; height: 14px; }
+.pin-toggle span { font-size: 12px; color: var(--mid); }
+
+/* ERROR */
+.err {
+  background: var(--red-light);
+  color: var(--red);
+  border: 1px solid #f0c0bb;
+  border-radius: var(--rs);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 18px;
+  display: none;
+  text-align: center;
+}
+
+/* BUTTON */
+.btn-login {
+  width: 100%;
+  padding: 13px;
+  background: var(--charcoal);
+  color: var(--white);
+  border: none;
+  border-radius: var(--rs);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .2s, transform .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-login:hover { background: #3a3a38; }
+.btn-login:active { transform: scale(.99); }
+.btn-login:disabled { opacity: .5; cursor: not-allowed; }
+.btn-login svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+/* SPINNER */
+.spin {
+  width: 17px; height: 17px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* FOOTER */
+.card-footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 32px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--light);
+}
+.card-footer a { color: var(--sage-dark); text-decoration: none; font-weight: 500; }
+.card-footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-top">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+    </div>
+    <h1>Admin Login</h1>
+    <p>Budget Barber — Control Panel</p>
+  </div>
+
+  <div class="card-body">
+    <div id="errBox" class="err"></div>
+
+    <div class="field">
+      <label>Phone Number</label>
+      <input
+        type="tel"
+        id="phone"
+        placeholder="+91 98765 43210"
+        autocomplete="tel"
+        inputmode="tel"
+      >
+    </div>
+
+    <div class="field">
+      <label>6-Digit PIN</label>
+      <div class="pin-row" id="pinRow">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="0">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="1">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="2">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="3">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="4">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="5">
+      </div>
+      <label class="pin-toggle">
+        <input type="checkbox" id="showPin" onchange="togglePinVisibility()">
+        <span>Show PIN</span>
+      </label>
+    </div>
+
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      <div class="spin" id="spin"></div>
+      <svg id="loginIcon" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+      Sign In
+    </button>
+  </div>
+
+  <div class="card-footer">
+    Franchise owner? <a href="customer-login.html">Log in here</a>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG — fill these in
+// ══════════════════════════════════════════
+const SUPABASE_URL  = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON = 'YOUR_SUPABASE_ANON_KEY_HERE';
+
+// Admin credentials stored here for simplicity
+// To change: update these values and re-upload
+const ADMIN_PHONE = 'YOUR_ADMIN_PHONE_HERE';   // e.g. '+919876543210'
+const ADMIN_PIN   = 'YOUR_ADMIN_PIN_HERE';      // e.g. '123456'
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── PIN input behaviour ────────────────────
+const digits = document.querySelectorAll('.pin-digit');
+
+digits.forEach((el, i) => {
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Backspace') {
+      if (el.value) {
+        el.value = '';
+        el.classList.remove('filled');
+      } else if (i > 0) {
+        digits[i-1].focus();
+        digits[i-1].value = '';
+        digits[i-1].classList.remove('filled');
+      }
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'ArrowLeft' && i > 0) { digits[i-1].focus(); return; }
+    if (e.key === 'ArrowRight' && i < 5) { digits[i+1].focus(); return; }
+    if (e.key === 'Enter') { doLogin(); return; }
+  });
+
+  el.addEventListener('input', e => {
+    const val = e.target.value.replace(/\D/g,'').slice(-1);
+    el.value = val;
+    if (val) {
+      el.classList.add('filled');
+      if (i < 5) digits[i+1].focus();
+    } else {
+      el.classList.remove('filled');
+    }
+  });
+
+  // Handle paste on any digit
+  el.addEventListener('paste', e => {
+    e.preventDefault();
+    const pasted = (e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+    pasted.split('').forEach((ch, j) => {
+      if (digits[j]) {
+        digits[j].value = ch;
+        digits[j].classList.add('filled');
+      }
+    });
+    const next = Math.min(pasted.length, 5);
+    digits[next].focus();
+  });
+});
+
+function getPin() {
+  return Array.from(digits).map(d => d.value).join('');
+}
+
+function togglePinVisibility() {
+  const show = document.getElementById('showPin').checked;
+  digits.forEach(d => { d.type = show ? 'text' : 'password'; });
+  // reset to text initially so digits show during entry, switch here
+}
+// Default: show digits as text for easier entry, mask when checkbox unchecked
+digits.forEach(d => d.type = 'text');
+
+function showErr(msg) {
+  const el = document.getElementById('errBox');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideErr() { document.getElementById('errBox').style.display = 'none'; }
+
+function setLoading(on) {
+  document.getElementById('loginBtn').disabled = on;
+  document.getElementById('spin').style.display = on ? 'block' : 'none';
+  document.getElementById('loginIcon').style.display = on ? 'none' : 'block';
+}
+
+// ── Login handler ──────────────────────────
+async function doLogin() {
+  hideErr();
+  const phone = document.getElementById('phone').value.trim();
+  const pin   = getPin();
+
+  if (!phone) { showErr('Please enter your phone number.'); return; }
+  if (pin.length !== 6) { showErr('Please enter all 6 digits of your PIN.'); return; }
+
+  setLoading(true);
+
+  try {
+    // Normalise phone: strip spaces, dashes
+    const normPhone = phone.replace(/[\s\-()]/g, '');
+
+    // Check against hardcoded admin credentials
+    if (normPhone === ADMIN_PHONE.replace(/[\s\-()]/g,'') && pin === ADMIN_PIN) {
+      // Store session in sessionStorage (clears when tab closes)
+      sessionStorage.setItem('bb_admin_auth', JSON.stringify({
+        role: 'admin',
+        phone: normPhone,
+        loginAt: Date.now()
+      }));
+      window.location.href = 'budget-barber-admin.html';
+      return;
+    }
+
+    // Also check Supabase bb_admins table (optional — for multiple admins)
+    const { data, error } = await sb
+      .from('bb_admins')
+      .select('id, name, phone, status')
+      .eq('phone', normPhone)
+      .eq('pin', pin)
+      .eq('status', 'active')
+      .single();
+
+    if (error || !data) {
+      showErr('Incorrect phone number or PIN. Please try again.');
+      digits.forEach(d => { d.value=''; d.classList.remove('filled'); });
+      digits[0].focus();
+      return;
+    }
+
+    sessionStorage.setItem('bb_admin_auth', JSON.stringify({
+      role: 'admin',
+      id: data.id,
+      name: data.name,
+      phone: normPhone,
+      loginAt: Date.now()
+    }));
+    window.location.href = 'budget-barber-admin.html';
+
+  } catch(e) {
+    showErr('Login error: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Guard: redirect if already logged in ──
+if (sessionStorage.getItem('bb_admin_auth')) {
+  window.location.href = 'budget-barber-admin.html';
+}
+
+// Focus phone on load
+document.getElementById('phone').focus();
+document.getElementById('phone').addEventListener('keydown', e => {
+  if (e.key === 'Enter') digits[0].focus();
+});
+</script>
+</body>
+</html>
