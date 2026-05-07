@@ -415,10 +415,10 @@ main{max-width:900px;margin:0 auto;padding:28px 18px 80px}
 // ╔══════════════════════════════════════════════════════╗
 // ║           CONFIGURATION — FILL THESE IN             ║
 // ╚══════════════════════════════════════════════════════╝
-const SUPABASE_URL  = 'https://uottuqqttklxcesxhijw.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_SFPzqaiDkGN_BUonCsL9Kw_p5yiZWrk';
-const YOUCAM_API_KEY   = 'sk-_DqRLIN1iHacG-RHKf8RCjqTKx060p6bxz4QrAUal14AGW2Jg5F50ML_fh6TMr37';
-const YOUCAM_API_BASE  = 'https://yce-api-01.makeupar.com/s2s/v2.0';
+const SUPABASE_URL     = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON    = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const YOUCAM_API_KEY   = 'YOUR_YOUCAM_API_KEY_HERE';
+const YOUCAM_API_BASE  = 'https://api-sdk.perfectcorp.com/s2s/v1.1';
 
 // ─── Supabase client ───────────────────────────────────
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -1039,27 +1039,34 @@ async function buildAndSaveReportPage(results, reportCode, products, dateStr, is
 </body>
 </html>`;
 
-  // Save HTML blob to Supabase Storage bucket 'reports'
-  const fileName   = `${reportCode}.html`;
-  const htmlBlob   = new Blob([reportHTML], { type: 'text/html' });
+  // Save HTML using direct fetch PUT — Supabase JS SDK ignores contentType
+  // for Blob uploads and defaults to text/plain, which makes browsers show
+  // raw HTML instead of rendering it. Direct fetch lets us force text/html.
+  const fileName  = `${reportCode}.html`;
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/reports/${fileName}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/reports/${fileName}`;
 
   try {
-    const { data, error } = await sb.storage
-      .from('reports')
-      .upload(fileName, htmlBlob, {
-        contentType: 'text/html',
-        upsert: true,
-      });
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Content-Type':  'text/html; charset=utf-8',
+        'x-upsert':      'true',
+        'Cache-Control': 'no-cache',
+      },
+      body: reportHTML,
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Storage ${res.status}: ${errText}`);
+    }
 
-    // Get public URL
-    const { data: urlData } = sb.storage.from('reports').getPublicUrl(fileName);
-    return urlData.publicUrl;
+    return publicUrl;
 
   } catch(e) {
-    console.warn('Could not save report to storage:', e.message);
-    // Fallback: use in-page URL with report code as query param
+    console.warn('Report storage failed:', e.message);
     return window.location.href.split('?')[0] + '?report=' + reportCode;
   }
 }
@@ -1120,18 +1127,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ══════════════════════════════════════════
 function checkCustomerAuth() {
   const raw = sessionStorage.getItem('bb_customer_auth');
-  if (!raw) { window.location.href = 'index.html'; return null; }
+  if (!raw) { window.location.href = 'customer-login.html'; return null; }
   try {
     const sess = JSON.parse(raw);
     // Session expires after 12 hours
     if (Date.now() - sess.loginAt > 12 * 60 * 60 * 1000) {
       sessionStorage.removeItem('bb_customer_auth');
-      window.location.href = 'index.html';
+      window.location.href = 'customer-login.html';
       return null;
     }
     return sess;
   } catch(e) {
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
     return null;
   }
 }
@@ -1139,7 +1146,7 @@ function checkCustomerAuth() {
 function logout() {
   if (confirm('Log out?')) {
     sessionStorage.removeItem('bb_customer_auth');
-    window.location.href = 'index.html';
+    window.location.href = 'customer-login.html';
   }
 }
 
