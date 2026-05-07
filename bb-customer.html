@@ -911,18 +911,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ══════════════════════════════════════════
 function checkCustomerAuth() {
   const raw = sessionStorage.getItem('bb_customer_auth');
-  if (!raw) { window.location.href = 'customer-login.html'; return null; }
+  if (!raw) { window.location.href = 'index.html'; return null; }
   try {
     const sess = JSON.parse(raw);
     // Session expires after 12 hours
     if (Date.now() - sess.loginAt > 12 * 60 * 60 * 1000) {
       sessionStorage.removeItem('bb_customer_auth');
-      window.location.href = 'customer-login.html';
+      window.location.href = 'index.html';
       return null;
     }
     return sess;
   } catch(e) {
-    window.location.href = 'customer-login.html';
+    window.location.href = 'index.html';
     return null;
   }
 }
@@ -930,7 +930,7 @@ function checkCustomerAuth() {
 function logout() {
   if (confirm('Log out?')) {
     sessionStorage.removeItem('bb_customer_auth');
-    window.location.href = 'customer-login.html';
+    window.location.href = 'index.html';
   }
 }
 
