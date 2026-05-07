@@ -501,7 +501,7 @@ async function doLogin() {
       location: foundCustomer.location,
       loginAt: Date.now()
     }));
-    window.location.href = 'budget-barber-customer.html';
+    window.location.href = 'bb-customer.html';
 
   } catch(e) {
     showErr(2, 'Login error: ' + e.message);
@@ -527,7 +527,7 @@ document.getElementById('phone').addEventListener('keydown', e => {
 
 // ── Guard: redirect if already logged in ──
 if (sessionStorage.getItem('bb_customer_auth')) {
-  window.location.href = 'budget-barber-customer.html';
+  window.location.href = 'bb-customer.html';
 }
 
 document.getElementById('phone').focus();
